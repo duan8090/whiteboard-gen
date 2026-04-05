@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.MAXCLAW_API_KEY || process.env.MINIMAX_API_KEY || '';
 
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 const publicDir = path.join(__dirname, 'public');
 if (!fs.existsSync(publicDir)) {
@@ -18,7 +18,7 @@ if (!fs.existsSync(publicDir)) {
 app.use(express.static(publicDir));
 
 app.post('/api/generate', async (req, res) => {
-  const { text } = req.body;
+  const { text, refImage } = req.body;
   if (!text) return res.status(400).json({ error: '请输入文字内容' });
   if (!API_KEY) return res.status(500).json({ error: 'API Key 未配置' });
 
@@ -26,35 +26,40 @@ app.post('/api/generate', async (req, res) => {
   const outputFile = path.join(publicDir, 'output_' + timestamp + '.png');
 
   try {
-    await generateWhiteboardImage(text, outputFile);
+    await generateWhiteboardImage(text, outputFile, refImage);
     res.json({ success: true, imageUrl: '/output_' + timestamp + '.png', text });
   } catch (error) {
     res.status(500).json({ error: 'API错误: ' + error.message });
   }
 });
 
-function generateWhiteboardImage(text, outputPath) {
+function generateWhiteboardImage(text, outputPath, refImage) {
   return new Promise(function(resolve, reject) {
-    var prompt = 'Whiteboard illustration with hand-drawn marker style. Clean white background, colorful marker pen drawings, educational diagram, sketch style, like someone drew on a whiteboard with markers. Content: ' + text;
-    var body = JSON.stringify({
+    var promptText = 'Whiteboard hand-drawn illustration. Clean white background, hand-drawn with colored markers, sketch style, professional business chart with bar charts, pie charts and text labels. Include arrows, flow charts and data boxes. Colorful marker drawings, educational diagram style. Content: ' + text;
+
+    var requestBody = {
       model: 'image-01',
-      prompt: prompt,
+      prompt: promptText,
       aspect_ratio: '16:9',
       response_format: 'base64'
-    });
+    };
+
+    if (refImage) {
+      requestBody.reference_image = refImage;
+    }
+
+    var body = JSON.stringify(requestBody);
 
     var req = https.request({
       hostname: 'api.minimaxi.com',
       path: '/v1/image_generation',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
-      timeout: 60000
+      timeout: 90000
     }, function(resp) {
       var data = '';
       resp.on('data', function(chunk) { data += chunk; });
       resp.on('end', function() {
-        console.log('MiniMax响应状态:', resp.statusCode);
-        console.log('MiniMax响应内容:', data.substring(0, 200));
         try {
           var result = JSON.parse(data);
           if (result.base_resp && result.base_resp.status_code === 0) {
@@ -62,13 +67,12 @@ function generateWhiteboardImage(text, outputPath) {
             if (Array.isArray(base64Str)) base64Str = base64Str[0];
             var buffer = Buffer.from(base64Str, 'base64');
             fs.writeFileSync(outputPath, buffer);
-            console.log('图片已保存');
             resolve(outputPath);
           } else {
             reject(new Error(result.base_resp ? result.base_resp.status_msg : (result.msg || 'API错误')));
           }
         } catch (e) {
-          reject(new Error('解析失败: ' + e.message + ' | 响应: ' + data.substring(0, 100)));
+          reject(new Error('解析失败: ' + e.message));
         }
       });
     });
