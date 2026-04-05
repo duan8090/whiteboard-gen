@@ -7,20 +7,27 @@ const https = require('https');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// MiniMax API Key
-const API_KEY = process.env.MAXCLAW_API_KEY || 'ab0123456789xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+// MiniMax API Key（从环境变量读取）
+const API_KEY = process.env.MAXCLAW_API_KEY || process.env.MINIMAX_API_KEY || '';
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-// 静态文件（前端）— 放最后，兜底所有未匹配的路由
 const publicDir = path.join(__dirname, 'public');
+if (!fs.existsSync(publicDir)) {
+  fs.mkdirSync(publicDir, { recursive: true });
+}
+app.use(express.static(publicDir));
 
-// AI 图像生成接口（放在 static 之前，避免被拦截）
+// AI 图像生成接口
 app.post('/api/generate', async (req, res) => {
   const { text } = req.body;
   if (!text) {
     return res.status(400).json({ error: '请输入文字内容' });
+  }
+
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'API Key 未配置，请在 Render 环境变量中设置 MINIMAX_API_KEY' });
   }
 
   const timestamp = Date.now();
@@ -39,21 +46,21 @@ app.post('/api/generate', async (req, res) => {
   }
 });
 
-// 生成白板风格图片
+// MiniMax 图片生成（正确的 API 端点）
 function generateWhiteboardImage(text, outputPath) {
   return new Promise((resolve, reject) => {
-    const prompt = `Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, hand-drawn text, educational diagram style. Content: ${text}`;
+    const prompt = `Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, educational diagram style. Content: ${text}`;
 
     const body = JSON.stringify({
       model: 'image-01',
       prompt: prompt,
       aspect_ratio: '16:9',
-      resolution: '2K'
+      response_format: 'base64'
     });
 
     const options = {
-      hostname: 'api.minimaxi.com',
-      path: '/v1/images/generations',
+      hostname: 'api.minimax.io',
+      path: '/v1/image_generation',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -61,19 +68,29 @@ function generateWhiteboardImage(text, outputPath) {
       }
     };
 
+    console.log('调用 MiniMax API，模型: image-01');
+
     const req = https.request(options, (resp) => {
       let data = '';
       resp.on('data', chunk => data += chunk);
       resp.on('end', () => {
         try {
+          console.log('MiniMax 响应状态:', resp.statusCode);
+          console.log('MiniMax 响应内容前100字符:', data.substring(0, 100));
           const result = JSON.parse(data);
-          if (result.code === 0 && result.data && result.data.images && result.data.images[0]) {
-            downloadImage(result.data.images[0].url, outputPath).then(resolve).catch(reject);
+
+          if (result.code === 0 && result.data && result.data.image_base64) {
+            // 响应是 base64 格式，保存为文件
+            const base64Data = result.data.image_base64;
+            const buffer = Buffer.from(base64Data, 'base64');
+            fs.writeFileSync(outputPath, buffer);
+            console.log('图片已保存到:', outputPath);
+            resolve(outputPath);
           } else {
-            reject(new Error(result.msg || 'API错误: ' + JSON.stringify(result).substring(0, 150)));
+            reject(new Error(result.msg || 'API错误: ' + JSON.stringify(result).substring(0, 200)));
           }
         } catch (e) {
-          reject(new Error('解析失败: ' + e.message));
+          reject(new Error('解析失败: ' + e.message + ' | 原始响应: ' + data.substring(0, 100)));
         }
       });
     });
@@ -84,39 +101,12 @@ function generateWhiteboardImage(text, outputPath) {
   });
 }
 
-// 下载图片
-function downloadImage(url, outputPath) {
-  return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(outputPath);
-    https.get(url, (res) => {
-      if (res.statusCode === 301 || res.statusCode === 302) {
-        file.close();
-        fs.unlinkSync(outputPath);
-        downloadImage(res.headers.location, outputPath).then(resolve).catch(reject);
-        return;
-      }
-      res.pipe(file);
-      file.on('close', () => resolve(outputPath));
-      file.on('error', reject);
-    }).on('error', (e) => {
-      try { fs.unlinkSync(outputPath); } catch (_) {}
-      reject(e);
-    });
-  });
-}
-
-// 静态文件（放最后，兜底未匹配的路由）
-if (!fs.existsSync(publicDir)) {
-  fs.mkdirSync(publicDir, { recursive: true });
-}
-app.use(express.static(publicDir));
-
-// API 健康检查（GET，在 catch-all 之前）
+// 健康检查
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', service: 'whiteboard-gen' });
+  res.json({ status: 'ok', service: 'whiteboard-gen', apiKeyConfigured: !!API_KEY });
 });
 
-// 兜底：未匹配的路径返回 index.html（支持 SPA）
+// 兜底路由
 app.get('*', (req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
@@ -124,4 +114,5 @@ app.get('*', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🖌️  白板绘图生成器已启动');
   console.log(`🌐 访问地址: http://localhost:${PORT}`);
+  console.log(`🔑 API Key 配置: ${API_KEY ? '已设置' : '未设置'}`);
 });
