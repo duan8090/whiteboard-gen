@@ -89,7 +89,7 @@ app.post('/api/visual-note', async (req, res) => {
   }
 });
 
-// 调用 Gemini API 提取结构化内容
+// 调用 Gemini API 提取结构化内容（自动尝试多个可用模型）
 function callGemini(text) {
   return new Promise((resolve, reject) => {
     const prompt = `你是一个专业的视觉笔记排版专家。请分析以下文本，提取出核心内容，并严格按照以下 JSON 格式返回。
@@ -118,32 +118,51 @@ ${text}`;
       contents: [{ parts: [{ text: prompt }] }]
     });
 
-    const req = https.request({
-      hostname: 'generativelanguage.googleapis.com',
-      path: `/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 30000
-    }, (resp) => {
-      let data = '';
-      resp.on('data', chunk => data += chunk);
-      resp.on('end', () => {
-        try {
-          const result = JSON.parse(data);
-          if (result.error) reject(new Error(result.error.message));
-          const rawText = result.candidates[0].content.parts[0].text
-            .replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          resolve(JSON.parse(rawText));
-        } catch (e) {
-          reject(new Error('解析失败: ' + e.message));
-        }
-      });
-    });
+    // 尝试多个模型配置
+    const models = [
+      { apiVersion: 'v1', model: 'models/gemini-2.0-flash' },
+      { apiVersion: 'v1beta', model: 'models/gemini-2.0-flash' },
+      { apiVersion: 'v1', model: 'models/gemini-1.5-flash' },
+      { apiVersion: 'v1beta', model: 'models/gemini-1.5-flash' },
+    ];
 
-    req.on('timeout', () => { req.destroy(); reject(new Error('API 超时')); });
-    req.on('error', e => reject(new Error('请求失败: ' + e.message)));
-    req.write(body);
-    req.end();
+    function tryModel(index) {
+      if (index >= models.length) {
+        reject(new Error('所有 Gemini 模型均不可用，请检查 API Key 是否正确'));
+        return;
+      }
+      const { apiVersion, model } = models[index];
+      const req = https.request({
+        hostname: 'generativelanguage.googleapis.com',
+        path: `/${apiVersion}/${model}:generateContent?key=${GEMINI_KEY}`,
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 30000
+      }, (resp) => {
+        let data = '';
+        resp.on('data', chunk => data += chunk);
+        resp.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            if (result.error) {
+              tryModel(index + 1);
+              return;
+            }
+            const rawText = result.candidates[0].content.parts[0].text
+              .replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+            resolve(JSON.parse(rawText));
+          } catch (e) {
+            tryModel(index + 1);
+          }
+        });
+      });
+      req.on('timeout', () => { req.destroy(); tryModel(index + 1); });
+      req.on('error', () => tryModel(index + 1));
+      req.write(body);
+      req.end();
+    }
+
+    tryModel(0);
   });
 }
 
