@@ -23,39 +23,39 @@ app.post('/api/generate', async (req, res) => {
   if (!API_KEY) return res.status(500).json({ error: 'API Key 未配置' });
 
   const timestamp = Date.now();
-  const outputFile = path.join(publicDir, `output_${timestamp}.png`);
+  const outputFile = path.join(publicDir, 'output_' + timestamp + '.png');
 
   try {
     await generateWhiteboardImage(text, outputFile);
-    res.json({ success: true, imageUrl: `/output_${timestamp}.png`, text });
+    res.json({ success: true, imageUrl: '/output_' + timestamp + '.png', text });
   } catch (error) {
     res.status(500).json({ error: 'API错误: ' + error.message });
   }
 });
 
 function generateWhiteboardImage(text, outputPath) {
-  return new Promise((resolve, reject) => {
-    const prompt = 'Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, educational diagram style. Content: ' + text;
-    const body = JSON.stringify({
+  return new Promise(function(resolve, reject) {
+    var prompt = 'Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, educational diagram style. Content: ' + text;
+    var body = JSON.stringify({
       model: 'image-01',
       prompt: prompt,
       aspect_ratio: '16:9',
       response_format: 'base64'
     });
 
-    const req = https.request({
+    var req = https.request({
       hostname: 'api.minimaxi.com',
       path: '/v1/image_generation',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY }
-    }, (resp) => {
-      let data = '';
-      resp.on('data', chunk => data += chunk);
-      resp.on('end', () => {
+    }, function(resp) {
+      var data = '';
+      resp.on('data', function(chunk) { data += chunk; });
+      resp.on('end', function() {
         try {
-          const result = JSON.parse(data);
+          var result = JSON.parse(data);
           if (result.code === 0 && result.data && result.data.image_base64) {
-            const buffer = Buffer.from(result.data.image_base64, 'base64');
+            var buffer = Buffer.from(result.data.image_base64, 'base64');
             fs.writeFileSync(outputPath, buffer);
             resolve(outputPath);
           } else {
@@ -67,20 +67,20 @@ function generateWhiteboardImage(text, outputPath) {
       });
     });
 
-    req.on('error', e => reject(new Error('请求失败: ' + e.message)));
+    req.on('error', function(e) { reject(new Error('请求失败: ' + e.message)); });
     req.write(body);
     req.end();
   });
 }
 
-app.get('/api/health', (req, res) => {
+app.get('/api/health', function(req, res) {
   res.json({ status: 'ok' });
 });
 
-app.get('*', (req, res) => {
+app.get('*', function(req, res) {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', function() {
   console.log('白板生成器已启动，端口:' + PORT);
 });
