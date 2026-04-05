@@ -47,26 +47,33 @@ function generateWhiteboardImage(text, outputPath) {
       hostname: 'api.minimaxi.com',
       path: '/v1/image_generation',
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY }
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + API_KEY },
+      timeout: 60000
     }, function(resp) {
       var data = '';
       resp.on('data', function(chunk) { data += chunk; });
       resp.on('end', function() {
+        console.log('MiniMax响应状态:', resp.statusCode);
+        console.log('MiniMax响应内容:', data.substring(0, 200));
         try {
           var result = JSON.parse(data);
-          if (result.code === 0 && result.data && result.data.image_base64) {
-            var buffer = Buffer.from(result.data.image_base64, 'base64');
+          if (result.base_resp && result.base_resp.status_code === 0) {
+            var base64Str = result.data.image_base64;
+            if (Array.isArray(base64Str)) base64Str = base64Str[0];
+            var buffer = Buffer.from(base64Str, 'base64');
             fs.writeFileSync(outputPath, buffer);
+            console.log('图片已保存');
             resolve(outputPath);
           } else {
-            reject(new Error(result.msg || 'API错误'));
+            reject(new Error(result.base_resp ? result.base_resp.status_msg : (result.msg || 'API错误')));
           }
         } catch (e) {
-          reject(new Error('解析失败: ' + e.message));
+          reject(new Error('解析失败: ' + e.message + ' | 响应: ' + data.substring(0, 100)));
         }
       });
     });
 
+    req.on('timeout', function() { req.destroy(); reject(new Error('请求超时')); });
     req.on('error', function(e) { reject(new Error('请求失败: ' + e.message)); });
     req.write(body);
     req.end();
