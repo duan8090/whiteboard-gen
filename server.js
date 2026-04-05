@@ -23,13 +23,14 @@ app.post('/api/generate', async (req, res) => {
     return res.status(400).json({ error: '请输入文字内容' });
   }
 
-  const outputFile = path.join(publicDir, `output_${Date.now()}.png`);
+  const timestamp = Date.now();
+  const outputFile = path.join(publicDir, `output_${timestamp}.png`);
 
   try {
-    const imageUrl = await generateWhiteboardImage(text, outputFile);
+    await generateWhiteboardImage(text, outputFile);
     res.json({
       success: true,
-      imageUrl: `/output_${Date.now()}.png`,
+      imageUrl: `/output_${timestamp}.png`,
       text
     });
   } catch (error) {

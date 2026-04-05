@@ -80,14 +80,12 @@
   </div>
 
   <script>
-    // MiniMax API Key（从部署环境变量读取）
-    // 生产环境通过 VITE_ 前缀注入
-    const API_KEY = import.meta.env.VITE_MINIMAX_API_KEY || '';
+    // 后端地址（Render 部署）
+    const API_BASE = 'https://whiteboard-gen.onrender.com';
 
     async function generate() {
       const text = document.getElementById('textInput').value.trim();
       if (!text) { showError('请先输入文字内容'); return; }
-      if (!API_KEY) { showError('API Key 未配置，请联系管理员'); return; }
 
       document.getElementById('placeholder').style.display = 'none';
       document.getElementById('loadingUI').style.display = 'flex';
@@ -97,40 +95,24 @@
       document.getElementById('genBtn').disabled = true;
 
       try {
-        const prompt = `Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, hand-drawn text, educational diagram style. Content: ${text}`;
+        const res = await fetch(`${API_BASE}/api/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        const data = await res.json();
 
-        const response = await fetch(
-          `https://api.minimaxi.com/v1/images/generations` +
-          `?key=${encodeURIComponent(API_KEY)}`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + API_KEY
-            },
-            body: JSON.stringify({
-              model: 'image-01',
-              prompt: prompt,
-              aspect_ratio: '16:9',
-              resolution: '2K'
-            })
-          }
-        );
-
-        const result = await response.json();
-
-        if (result.code === 0 && result.data && result.data.images && result.data.images[0]) {
+        if (data.success) {
           document.getElementById('loadingUI').style.display = 'none';
-          document.getElementById('outputImage').src = result.data.images[0].url;
+          document.getElementById('outputImage').src = `${API_BASE}${data.imageUrl}?t=${Date.now()}`;
           document.getElementById('outputImage').style.display = 'block';
-          document.getElementById('resultText').textContent = '✨ 已生成: ' + text;
+          document.getElementById('resultText').textContent = '✨ 已生成: ' + data.text;
           document.getElementById('resultText').style.display = 'block';
         } else {
-          showError(result.msg || '生成失败，请稍后重试');
+          showError(data.error || '生成失败');
         }
       } catch (err) {
-        console.error(err);
-        showError('网络错误，请检查网络后重试');
+        showError('网络错误，请稍后重试');
       } finally {
         document.getElementById('genBtn').disabled = false;
       }
