@@ -35,7 +35,7 @@ app.post('/api/generate', async (req, res) => {
 
 function generateWhiteboardImage(text, outputPath) {
   return new Promise(function(resolve, reject) {
-    var prompt = 'Whiteboard hand-drawn illustration. Clean white background with colorful marker drawings, educational diagram style. Content: ' + text;
+    var prompt = 'Whiteboard illustration with hand-drawn marker style. Clean white background, colorful marker pen drawings, educational diagram, sketch style, like someone drew on a whiteboard with markers. Content: ' + text;
     var body = JSON.stringify({
       model: 'image-01',
       prompt: prompt,
