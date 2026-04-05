@@ -5,76 +5,127 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🖌️ 白板绘图生成器</title>
   <style>
+    :root { --bg: #1a1a2e; --card: #16213e; --border: #0f3460; --accent: #00d2ff; --accent2: #3a7bd5; --text: #e0e0e0; --text-dim: #888; }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
-    .container { max-width: 900px; width: 100%; padding: 40px 20px; }
-    h1 { text-align: center; font-size: 2rem; margin-bottom: 8px; color: #fff; }
-    .subtitle { text-align: center; color: #888; margin-bottom: 32px; font-size: 0.95rem; }
-    .input-card { background: #16213e; border-radius: 16px; padding: 28px; margin-bottom: 24px; border: 1px solid #0f3460; }
-    .input-group { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    input[type="text"] { flex: 1; min-width: 200px; padding: 14px 18px; border-radius: 10px; border: 1px solid #0f3460; background: #0a0a1a; color: #fff; font-size: 1rem; outline: none; transition: border-color 0.2s; }
-    input[type="text"]:focus { border-color: #00d2ff; }
-    button { padding: 14px 28px; border-radius: 10px; border: none; background: linear-gradient(135deg, #00d2ff, #3a7bd5); color: #fff; font-size: 1rem; cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.1s; }
-    button:hover { opacity: 0.9; }
-    button:active { transform: scale(0.97); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .canvas-card { background: #16213e; border-radius: 16px; padding: 24px; border: 1px solid #0f3460; min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .canvas-placeholder { color: #555; text-align: center; }
-    .canvas-placeholder .icon { font-size: 3rem; margin-bottom: 12px; }
-    .result-text { color: #00d2ff; margin-top: 12px; font-size: 0.85rem; }
-    #outputImage { max-width: 100%; border-radius: 10px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
-    .loading { display: flex; flex-direction: column; align-items: center; gap: 12px; color: #888; }
-    .spinner { width: 40px; height: 40px; border: 3px solid #0f3460; border-top-color: #00d2ff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    .container { max-width: 1000px; width: 100%; padding: 40px 20px; }
+    h1 { text-align: center; font-size: 2.2rem; color: #fff; margin-bottom: 4px; }
+    .subtitle { text-align: center; color: var(--text-dim); margin-bottom: 28px; font-size: 0.9rem; }
+    .template-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; justify-content: center; }
+    .template-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid var(--border); background: var(--card); color: var(--text-dim); font-size: 0.85rem; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+    .template-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .template-btn.active { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border-color: transparent; font-weight: 600; }
+    .input-card { background: var(--card); border-radius: 16px; padding: 24px; margin-bottom: 20px; border: 1px solid var(--border); }
+    .input-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input[type="text"] { flex: 1; min-width: 220px; padding: 14px 18px; border-radius: 10px; border: 1px solid var(--border); background: #0a0a1a; color: #fff; font-size: 1rem; outline: none; transition: border-color 0.2s; }
+    input[type="text"]:focus { border-color: var(--accent); }
+    .btn-generate { padding: 14px 28px; border-radius: 10px; border: none; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 1rem; cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.1s; white-space: nowrap; }
+    .btn-generate:hover { opacity: 0.88; }
+    .btn-generate:active { transform: scale(0.97); }
+    .btn-generate:disabled { opacity: 0.5; cursor: not-allowed; }
+    .ref-row { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+    .ref-label { color: var(--text-dim); font-size: 0.85rem; white-space: nowrap; }
+    .ref-preview { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .ref-preview img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+    .ref-name { color: var(--text-dim); font-size: 0.75rem; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .btn-clear { color: #ff6b6b; font-size: 0.75rem; cursor: pointer; text-decoration: underline; }
+    .icon-section { margin-top: 14px; }
+    .icon-label { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 8px; display: block; }
+    .icon-grid { display: flex; gap: 8px; flex-wrap: wrap; }
+    .icon-btn { width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--border); background: #0a0a1a; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; transition: all 0.2s; }
+    .icon-btn:hover { border-color: var(--accent); transform: scale(1.1); }
+    .icon-btn.selected { border-color: var(--accent); background: rgba(0,210,255,0.1); }
+    .canvas-card { background: var(--card); border-radius: 16px; padding: 24px; border: 1px solid var(--border); min-height: 380px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .placeholder { color: #444; text-align: center; }
+    .placeholder .icon { font-size: 3rem; margin-bottom: 12px; display: block; }
+    .loading-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text-dim); }
+    .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .tips { margin-top: 20px; padding: 16px; background: #0f3460; border-radius: 10px; font-size: 0.85rem; color: #aaa; line-height: 1.6; }
-    .tips strong { color: #00d2ff; }
-    .error-msg { color: #ff6b6b; margin-top: 10px; font-size: 0.9rem; }
-    .ref-section { margin-top: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-    .ref-section label { color: #888; font-size: 0.9rem; white-space: nowrap; }
-    .ref-preview { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    .ref-preview img { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1px solid #0f3460; }
-    .ref-name { color: #888; font-size: 0.8rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .clear-ref { color: #ff6b6b; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+    #outputImage { max-width: 100%; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.4); }
+    .result-tip { color: var(--accent); margin-top: 10px; font-size: 0.82rem; }
+    .error-tip { color: #ff6b6b; margin-top: 10px; font-size: 0.85rem; }
+    .tips { margin-top: 16px; padding: 14px; background: var(--border); border-radius: 10px; font-size: 0.82rem; color: #aaa; line-height: 1.7; }
+    .tips strong { color: var(--accent); }
   </style>
 </head>
 <body>
   <div class="container">
     <h1>🖌️ 白板绘图生成器</h1>
-    <p class="subtitle">输入文字，AI 为你生成白板风格插图（支持上传参考图）</p>
+    <p class="subtitle">5 种风格模板 · 支持参考图 · SVG 图标</p>
+    <div class="template-bar" id="templateBar"></div>
     <div class="input-card">
-      <div class="input-group">
-        <input type="text" id="textInput" placeholder="例如：一只猫在弹吉他" onkeydown="if(event.key==='Enter')generate()" />
-        <button id="genBtn" onclick="generate()">🎨 生成图片</button>
+      <div class="input-row">
+        <input type="text" id="textInput" placeholder="描述你想要的白板内容，如：4月业绩目标 40 万" onkeydown="if(event.key==='Enter')generate()" />
+        <button class="btn-generate" id="genBtn" onclick="generate()">🎨 生成图片</button>
       </div>
-      <div class="ref-section">
-        <label>📎 参考图（可选）：</label>
-        <input type="file" id="refInput" accept="image/*" onchange="handleRefChange(this)" />
+      <div class="ref-row">
+        <span class="ref-label">📎 参考图：</span>
+        <input type="file" id="refInput" accept="image/*" onchange="handleRef(this)" style="color:#ccc;font-size:0.82rem" />
         <div class="ref-preview" id="refPreview" style="display:none">
           <img id="refImg" />
           <span class="ref-name" id="refName"></span>
-          <span class="clear-ref" onclick="clearRef()">✕ 移除</span>
+          <span class="btn-clear" onclick="clearRef()">✕ 移除</span>
+        </div>
+      </div>
+      <div class="icon-section">
+        <span class="icon-label">🎭 图标（可选）：</span>
+        <div class="icon-grid" id="iconGrid">
+          <div class="icon-btn selected" data-icon="" title="无">—</div>
+          <div class="icon-btn" data-icon="📊" title="图表">📊</div>
+          <div class="icon-btn" data-icon="💰" title="钱">💰</div>
+          <div class="icon-btn" data-icon="🎯" title="目标">🎯</div>
+          <div class="icon-btn" data-icon="🚀" title="火箭">🚀</div>
+          <div class="icon-btn" data-icon="✅" title="完成">✅</div>
+          <div class="icon-btn" data-icon="🔥" title="热门">🔥</div>
+          <div class="icon-btn" data-icon="⭐" title="星星">⭐</div>
+          <div class="icon-btn" data-icon="💡" title="想法">💡</div>
+          <div class="icon-btn" data-icon="📈" title="上升">📈</div>
+          <div class="icon-btn" data-icon="🎉" title="庆祝">🎉</div>
+          <div class="icon-btn" data-icon="⚡" title="闪电">⚡</div>
         </div>
       </div>
     </div>
-    <div class="canvas-card" id="canvasCard">
-      <div class="canvas-placeholder" id="placeholder">
-        <div class="icon">🎨</div>
-        <p>输入文字后点击「生成图片」<br><span style="font-size:0.8rem;color:#555">可上传参考图让AI学习风格</span></p>
-      </div>
-      <div class="loading" id="loadingUI" style="display:none">
-        <div class="spinner"></div>
-        <p>AI 创作中，请稍候...</p>
-      </div>
+    <div class="canvas-card">
+      <div class="placeholder" id="placeholder"><span class="icon">🎨</span><p>输入内容后点击「生成图片」<br><span style="font-size:0.8rem;color:#333">切换上方模板试试不同风格</span></p></div>
+      <div class="loading-wrap" id="loadingUI" style="display:none"><div class="spinner"></div><p>AI 创作中，请稍候...</p></div>
       <img id="outputImage" style="display:none" />
-      <p class="result-text" id="resultText" style="display:none"></p>
-      <p class="error-msg" id="errorMsg" style="display:none"></p>
+      <p class="result-tip" id="resultTip" style="display:none"></p>
+      <p class="error-tip" id="errorTip" style="display:none"></p>
     </div>
-    <div class="tips">💡 <strong>提示：</strong>上传参考图可以让AI学习图片风格后生成类似风格的作品。描述越具体，生成效果越好。</div>
+    <div class="tips">💡 <strong>提示：</strong>描述越具体效果越好。支持中英文混合。上传参考图可让AI学习风格，点击模板名称可切换5种风格。</div>
   </div>
   <script>
-    var API_BASE = 'https://whiteboard-gen.onrender.com';
+    var API = '';
     var refBase64 = null;
-    function handleRefChange(input) {
+    var selectedIcon = '';
+    var currentTemplate = 'classic';
+
+    fetch(API + '/api/templates').then(r => r.json()).then(data => {
+      if (!data.success) return;
+      var bar = document.getElementById('templateBar');
+      data.templates.forEach(t => {
+        var btn = document.createElement('button');
+        btn.className = 'template-btn' + (t.id === 'classic' ? ' active' : '');
+        btn.textContent = t.name;
+        btn.dataset.id = t.id;
+        btn.onclick = function() {
+          document.querySelectorAll('.template-btn').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          currentTemplate = t.id;
+        };
+        bar.appendChild(btn);
+      });
+    });
+
+    document.querySelectorAll('.icon-btn').forEach(btn => {
+      btn.onclick = function() {
+        document.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('selected'));
+        this.classList.add('selected');
+        selectedIcon = this.dataset.icon;
+      };
+    });
+
+    function handleRef(input) {
       var file = input.files[0];
       if (!file) return;
       var reader = new FileReader();
@@ -86,41 +137,44 @@
       };
       reader.readAsDataURL(file);
     }
+
     function clearRef() {
       refBase64 = null;
       document.getElementById('refInput').value = '';
       document.getElementById('refPreview').style.display = 'none';
     }
+
     async function generate() {
       var text = document.getElementById('textInput').value.trim();
-      if (!text) { showError('请先输入文字内容'); return; }
+      if (!text) { showErr('请先输入内容'); return; }
+      if (selectedIcon) text = selectedIcon + ' ' + text;
       document.getElementById('placeholder').style.display = 'none';
       document.getElementById('loadingUI').style.display = 'flex';
       document.getElementById('outputImage').style.display = 'none';
-      document.getElementById('resultText').style.display = 'none';
-      document.getElementById('errorMsg').style.display = 'none';
+      document.getElementById('resultTip').style.display = 'none';
+      document.getElementById('errorTip').style.display = 'none';
       document.getElementById('genBtn').disabled = true;
       try {
-        var body = { text: text };
+        var body = { text: text, template: currentTemplate };
         if (refBase64) body.refImage = refBase64;
-        var res = await fetch(API_BASE + '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        var res = await fetch(API + '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         var data = await res.json();
         if (data.success) {
           document.getElementById('loadingUI').style.display = 'none';
-          document.getElementById('outputImage').src = API_BASE + data.imageUrl + '?t=' + Date.now();
+          document.getElementById('outputImage').src = API + data.imageUrl + '&t=' + Date.now();
           document.getElementById('outputImage').style.display = 'block';
-          document.getElementById('resultText').textContent = '✨ 已生成: ' + data.text;
-          document.getElementById('resultText').style.display = 'block';
-        } else {
-          showError(data.error || '生成失败');
-        }
-      } catch (err) { showError('网络错误，请稍后重试'); }
+          var tname = document.querySelector('.template-btn.active').textContent;
+          document.getElementById('resultTip').textContent = '✅ 已生成，风格：' + tname;
+          document.getElementById('resultTip').style.display = 'block';
+        } else { showErr(data.error || '生成失败'); }
+      } catch(e) { showErr('网络错误'); }
       finally { document.getElementById('genBtn').disabled = false; }
     }
-    function showError(msg) {
+
+    function showErr(msg) {
       document.getElementById('loadingUI').style.display = 'none';
-      document.getElementById('errorMsg').textContent = msg;
-      document.getElementById('errorMsg').style.display = 'block';
+      document.getElementById('errorTip').textContent = msg;
+      document.getElementById('errorTip').style.display = 'block';
     }
   </script>
 </body>
